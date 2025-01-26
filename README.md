@@ -13,7 +13,7 @@ World Flag Quiz is an interactive quiz game designed to test your knowledge of c
 
 ## Preview
 
-![World Flag Quiz Preview](./preview.png)  
+![World Flag Quiz Preview](./screenshots.jpeg)  
 
 ## Technologies Used
 
