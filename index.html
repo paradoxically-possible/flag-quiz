@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>World Flag Quiz</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+    <style>
+        :root {
+            --primary: #2d3436;
+            --secondary: #636e72;
+            --background: #f5f6fa;
+            --card-bg: rgba(255, 255, 255, 0.97);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            padding: 2rem;
+            color: var(--primary);
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .stats-bar {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+            background: var(--card-bg);
+            padding: 1.5rem;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.05);
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: var(--secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-value {
+            font-size: 1.4rem;
+            font-weight: 600;
+        }
+
+        .flag-card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.05);
+            margin-bottom: 2rem;
+        }
+
+        .flag-img {
+            width: 100%;
+            height: 200px;
+            object-fit: contain;
+            margin: 1rem 0;
+            border-radius: 8px;
+        }
+
+        .options-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .option-btn {
+            padding: 1.2rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            background: transparent;
+            color: var(--primary);
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .option-btn:hover {
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+
+        .option-btn.correct {
+            border-color: #00b894;
+            background: #00b89420;
+            color: #00b894;
+        }
+
+        .option-btn.wrong {
+            border-color: #d63031;
+            background: #d6303120;
+            color: #d63031;
+        }
+
+        .result-card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 3rem;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.05);
+        }
+
+        .progress-bar {
+            height: 4px;
+            background: #e0e0e0;
+            border-radius: 2px;
+            margin: 1rem 0;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--primary);
+            transition: width 0.3s ease;
+        }
+
+        @media (max-width: 600px) {
+            .options-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            body {
+                padding: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="stats-bar">
+            <div class="stat-item">
+                <div class="stat-label">Correct Answers</div>
+                <div class="stat-value" id="correct-count">0</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Remaining</div>
+                <div class="stat-value" id="remaining">0</div>
+            </div>
+        </div>
+
+        <div class="flag-card" id="quiz">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress"></div>
+            </div>
+            <img id="flag" class="flag-img" alt="Country Flag">
+            <div class="options-grid" id="options"></div>
+        </div>
+
+        <div class="result-card" id="result" style="display: none;">
+            <h2>Quiz Completed! 🎉</h2>
+            <div style="margin: 2rem 0">
+                <p style="font-size: 1.2rem">Final Score: <strong id="final-score">0</strong></p>
+                <div style="margin: 1rem 0">
+                    <p>Correct Answers: <span id="final-correct">0</span></p>
+                    <p>Wrong Answers: <span id="final-wrong">0</span></p>
+                </div>
+            </div>
+            <button onclick="location.reload()" class="option-btn" style="border-color: var(--primary)">
+                Play Again
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const COUNTRIES_API = 'https://restcountries.com/v3.1/all?fields=name,flags,region';
+        let countries = [];
+        let quizCountries = [];
+        let currentQuestion = 0;
+        let correctCount = 0;
+        let wrongCount = 0;
+        let totalQuestions = 0;
+
+        async function initQuiz() {
+            try {
+                const response = await fetch(COUNTRIES_API);
+                countries = await response.json();
+                totalQuestions = countries.length;
+                quizCountries = shuffleArray([...countries]);
+                updateRemaining();
+                loadQuestion();
+            } catch (error) {
+                console.error('Error fetching countries:', error);
+            }
+        }
+
+        function loadQuestion() {
+            if (currentQuestion >= totalQuestions) {
+                showResults();
+                return;
+            }
+
+            const country = quizCountries[currentQuestion];
+            const options = generateOptions(country);
+
+            // Update UI
+            document.getElementById('flag').src = country.flags.png;
+            document.getElementById('progress').style.width = 
+                `${(currentQuestion / totalQuestions) * 100}%`;
+
+            // Render options
+            const optionsContainer = document.getElementById('options');
+            optionsContainer.innerHTML = '';
+            options.forEach(option => {
+                const button = document.createElement('button');
+                button.className = 'option-btn';
+                button.textContent = option.name.common;
+                button.onclick = () => checkAnswer(option === country, button);
+                optionsContainer.appendChild(button);
+            });
+        }
+
+        function generateOptions(correctCountry) {
+            const options = [correctCountry];
+            
+            // Add 3 similar countries from same region
+            const similarCountries = countries.filter(c => 
+                c.region === correctCountry.region && 
+                c.name.common !== correctCountry.name.common
+            );
+            
+            for (let i = 0; i < 3; i++) {
+                if (similarCountries.length === 0) break;
+                const randomIndex = Math.floor(Math.random() * similarCountries.length);
+                options.push(similarCountries[randomIndex]);
+                similarCountries.splice(randomIndex, 1);
+            }
+
+            return shuffleArray(options);
+        }
+
+        function checkAnswer(isCorrect, button) {
+            const options = document.querySelectorAll('.option-btn');
+            options.forEach(opt => opt.disabled = true);
+
+            if (isCorrect) {
+                correctCount++;
+                button.classList.add('correct');
+                confetti({ particleCount: 50, spread: 70 });
+            } else {
+                wrongCount++;
+                button.classList.add('wrong');
+                options.forEach(opt => {
+                    if (opt.textContent === quizCountries[currentQuestion].name.common) {
+                        opt.classList.add('correct');
+                    }
+                });
+            }
+
+            // Update stats
+            document.getElementById('correct-count').textContent = correctCount;
+            currentQuestion++;
+            updateRemaining();
+
+            setTimeout(() => {
+                if (currentQuestion < totalQuestions) {
+                    loadQuestion();
+                } else {
+                    showResults();
+                }
+            }, 1500);
+        }
+
+        function updateRemaining() {
+            document.getElementById('remaining').textContent = totalQuestions - currentQuestion;
+        }
+
+        function showResults() {
+            document.getElementById('quiz').style.display = 'none';
+            document.getElementById('result').style.display = 'block';
+            document.getElementById('final-score').textContent = (correctCount * 3) - wrongCount;
+            document.getElementById('final-correct').textContent = correctCount;
+            document.getElementById('final-wrong').textContent = wrongCount;
+        }
+
+        // Utility function
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        initQuiz();
+    </script>
+</body>
+</html>
